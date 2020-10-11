@@ -37,10 +37,17 @@ class TokenObtainSerializer(serializers.Serializer):
         self.fields['password'] = PasswordField()
 
     def validate(self, attrs):
-        authenticate_kwargs = {
-            self.username_field: attrs[self.username_field],
-            'password': attrs['password'],
-        }
+        user_obj = User.objects.filter(email=attrs.get("username_or_email")).first() or User.objects.filter(username=attrs.get("username_or_email")).first()
+        if user_obj is not None:
+            authenticate_kwargs = {
+                self.username_field_name: user_obj.username,
+                'password': attrs['password'],
+            }
+        else:
+            authenticate_kwargs = {
+                self.username_field_name: attrs[self.username_field],
+                'password': attrs['password'],
+            }
         try:
             authenticate_kwargs['request'] = self.context['request']
         except KeyError:
@@ -48,7 +55,14 @@ class TokenObtainSerializer(serializers.Serializer):
 
         self.user = authenticate(**authenticate_kwargs)
 
-        if not getattr(login_rule, user_eligible_for_login)(self.user):
+        # Prior to Django 1.10, inactive users could be authenticated with the
+        # default `ModelBackend`.  As of Django 1.10, the `ModelBackend`
+        # prevents inactive users from authenticating.  App designers can still
+        # allow inactive users to authenticate by opting for the new
+        # `AllowAllUsersModelBackend`.  However, we explicitly prevent inactive
+        # users from authenticating to enforce a reasonable policy and provide
+        # sensible backwards compatibility with older Django versions.
+        if self.user is None or not self.user.is_active:
             raise exceptions.AuthenticationFailed(
                 self.error_messages['no_active_account'],
                 'no_active_account',
