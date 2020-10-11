@@ -24,7 +24,8 @@ class PasswordField(serializers.CharField):
 
 
 class TokenObtainSerializer(serializers.Serializer):
-    username_field = User.USERNAME_FIELD
+    username_field = 'username_or_email'
+    username_field_name = 'username'
 
     default_error_messages = {
         'no_active_account': _('No active account found with the given credentials')
